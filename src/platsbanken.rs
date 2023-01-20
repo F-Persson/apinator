@@ -1,22 +1,23 @@
 use serde::{Deserialize, Serialize};
 extern crate reqwest;
 use chrono::{Duration, Local};
+use colored::Colorize;
 use reqwest::header;
-use serde_json::Value;
+use serde_json::from_str;
 
 #[derive(Deserialize, Serialize, Debug)]
 struct Ad {
     id: String,
-    published_date: String,
+    published_date: Option<String>,
     last_application_date: Option<String>,
     title: String,
     occupation: String,
     workplace: Option<String>,
-    workplace_name: String,
+    workplace_name: Option<String>,
     unspecified_workplace: Option<String>,
     published: bool,
     positions: i32,
-    source_links: Vec<SourceLink>,
+    source_links: Option<Vec<SourceLink>>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -26,14 +27,55 @@ struct SourceLink {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-struct Root {
+struct Jobs {
     positions: i32,
-    number_of_ads: i32,
-    offset_limit: i32,
+    numberOfAds: i32,
+    offset_limit: Option<i32>,
     ads: Vec<Ad>,
 }
 
+fn deserialize_job(json_str: String) -> Jobs {
+    match from_str(&json_str) {
+        Ok(job) => job,
+        Err(e) => {
+            println!("Failed to parse JSON: {}", e);
+            panic!();
+        }
+    }
+}
+
 pub fn platsbanken(keyword: String) {
+    let client = get_client();
+
+    let mut start_idx = 0;
+    let mut counter = 0;
+
+    //let mut jobs: Vec<Jobs> = vec![];
+
+    'ads: loop {
+        let json_body = get_json_body(&start_idx.to_string(), &keyword);
+        let result = get_request(&client, json_body);
+        //jobs.push(result);
+
+        for job in result.ads {
+            let link_string = format!(
+                "\x1B]8;;{}\x07{}\x1B]8;;\x07",
+                "https://arbetsformedlingen.se/platsbanken/annonser/".to_owned()
+                    + &job.id.to_string(),
+                &job.title
+            );
+            println!("{}: {}", link_string.blue(), counter);
+            counter += 1;
+            //println!("{}\n{}", job.id, job.title);
+        }
+        if result.numberOfAds < start_idx + 100 {
+            break 'ads;
+        }
+        start_idx += 100;
+    }
+}
+
+fn get_json_body(start_index: &str, keyword: &String) -> String {
     let now = Local::now();
     let thirty_days_ago = now - Duration::days(30);
 
@@ -42,14 +84,10 @@ pub fn platsbanken(keyword: String) {
 
     let key_word = &keyword[..keyword.len() - 1];
 
-    let json_body = "{\"filters\":[{\"type\":\"freetext\",\"value\":\"key_word\"}],\"fromDate\":\"2022-12-21T23:00:00.000Z\",\"order\":\"relevance\",\"maxRecords\":100,\"startIndex\":0,\"toDate\":\"2023-01-20T06:41:22.487Z\",\"source\":\"pb\"}".replace("key_word", key_word).replace("from_date", &from_date).replace("to_date", &to_date);
-
-    let result = get_request(json_body);
-
-    println!("{:?}", result);
+    "{\"filters\":[{\"type\":\"freetext\",\"value\":\"key_word\"}],\"fromDate\":\"from_date\",\"order\":\"relevance\",\"maxRecords\":100,\"startIndex\":start_index,\"toDate\":\"to_date\",\"source\":\"pb\"}".replace("key_word", key_word).replace("start_index", start_index).replace("from_date", &from_date).replace("to_date", &to_date)
 }
 
-fn get_request(json_body: String) -> Result<(), Box<dyn std::error::Error>> {
+fn get_request(client: &reqwest::blocking::Client, json_body: String) -> Jobs {
     let mut headers = header::HeaderMap::new();
     headers.insert(
         "Accept",
@@ -61,18 +99,27 @@ fn get_request(json_body: String) -> Result<(), Box<dyn std::error::Error>> {
     );
     headers.insert("Connection", "keep-alive".parse().unwrap());
     headers.insert("Content-Type", "application/json".parse().unwrap());
-    let client = reqwest::blocking::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .unwrap();
-    let res = client
+
+    let response = client
         .post("https://platsbanken-api.arbetsformedlingen.se/jobs/v1/search")
         .headers(headers)
         .body(json_body)
-        .send()?
-        .text()?;
-    println!("{}", res);
-    Ok(())
+        .send()
+        .unwrap()
+        .text()
+        .unwrap();
+
+    deserialize_job(response)
+    //println!("{:?}", response);
+    // println!("{:?}", response);
+    // Ok(())
+}
+
+fn get_client() -> reqwest::blocking::Client {
+    reqwest::blocking::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap()
 }
 
 // for id in res {
