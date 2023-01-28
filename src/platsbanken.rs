@@ -49,14 +49,26 @@ pub fn platsbanken(keyword: String) {
 
     let mut start_idx = 0;
     let mut counter = 0;
+    let mut job_url: Vec<String> = vec![];
 
     //let mut jobs: Vec<Jobs> = vec![];
 
     'ads: loop {
         let json_body = get_json_body(&start_idx.to_string(), &keyword);
         let result = get_request(&client, json_body);
-        //jobs.push(result);
 
+        // This is to get every single job Id
+        // for job in result.ads {
+        //     job_url.push(
+        //         "https://platsbanken-api.arbetsformedlingen.se/jobs/v1/job/".to_owned()
+        //             + &job.id.to_string(),
+        //     );
+        // }
+
+        //let job_url =
+        // jobs.push(result);
+
+        // Prints the url to the job
         for job in result.ads {
             let link_string = format!(
                 "\x1B]8;;{}\x07{}\x1B]8;;\x07",
@@ -73,6 +85,40 @@ pub fn platsbanken(keyword: String) {
         }
         start_idx += 100;
     }
+
+    // Get and print every single job
+    // get_jobs(&client, &job_url);
+}
+
+fn get_jobs(
+    client: &reqwest::blocking::Client,
+    job_url: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    for str in job_url {
+        let mut headers = header::HeaderMap::new();
+        headers.insert(
+            "Accept",
+            "application/json, text/plain, */*".parse().unwrap(),
+        );
+        headers.insert(
+            "Accept-Language",
+            "en-US,en;q=0.9,sv;q=0.8".parse().unwrap(),
+        );
+        headers.insert("Connection", "keep-alive".parse().unwrap());
+        headers.insert("INT_SYS", "platsbanken_web_beta".parse().unwrap());
+        headers.insert("Origin", "https://arbetsformedlingen.se".parse().unwrap());
+        headers.insert("Referer", "https://arbetsformedlingen.se/".parse().unwrap());
+        let response = client
+            .get(str)
+            .headers(headers)
+            .send()
+            .unwrap()
+            .text()
+            .unwrap();
+        println!("{response}");
+    }
+
+    Ok(())
 }
 
 fn get_json_body(start_index: &str, keyword: &String) -> String {

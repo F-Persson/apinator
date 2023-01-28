@@ -3,15 +3,15 @@ mod platsbanken;
 use hackernews::hacker_news;
 use platsbanken::platsbanken;
 use std::io;
-mod hemnet;
-use hemnet::hemnet;
+// mod hemnet;
+// use hemnet::hemnet;
 
 fn main() {
     loop {
         println!("Press 0 for exit");
         println!("1. Hackernews");
-        println!("2. Hemnet");
-        println!("3. Platsbanken");
+        println!("2. Platsbanken");
+        //println!("3. Hemnet");
         let mut input = String::new();
 
         io::stdin()
@@ -30,10 +30,6 @@ fn main() {
                 hacker_news();
             }
             2 => {
-                println!("Accessing Hemnet...");
-                hemnet();
-            }
-            3 => {
                 println!("Enter job...");
                 let mut keyword = String::new();
 
@@ -43,6 +39,10 @@ fn main() {
                 println!("Accessing platsbanken...");
                 platsbanken(keyword);
             }
+            // 3 => {
+            //     //hemnet();
+            //     //println!("Accessing Hemnet...");
+            // }
             _ => println!("Invalid input"),
         }
     }
