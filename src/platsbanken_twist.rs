@@ -3,7 +3,7 @@ extern crate reqwest;
 use chrono::{Duration, Local};
 use colored::Colorize;
 use reqwest::header;
-use serde_json::from_str;
+use serde_json::{from_str, Value};
 
 #[derive(Deserialize, Serialize, Debug)]
 struct Ad {
@@ -44,25 +44,36 @@ fn deserialize_job(json_str: String) -> Jobs {
     }
 }
 
-pub fn platsbanken(keyword: String) {
+pub fn platsbanken_twist(keyword: String, includes: Vec<String>) {
     let client = get_client();
 
     let mut start_idx = 0;
     let mut counter = 0;
+    let mut job_url: Vec<String> = vec![];
+
+    //let mut jobs: Vec<Jobs> = vec![];
 
     'ads: loop {
         let json_body = get_json_body(&start_idx.to_string(), &keyword);
         let result = get_request(&client, json_body);
 
+        // This is to get every single job Id
+        // for job in result.ads {
+        //     job_url.push(
+        //         "https://platsbanken-api.arbetsformedlingen.se/jobs/v1/job/".to_owned()
+        //             + &job.id.to_string(),
+        //     );
+        // }
+
+        //let job_url =
+        // jobs.push(result);
+
+        // Prints the url to the job
         for job in result.ads {
-            let link_string = format!(
-                "\x1B]8;;{}\x07{}\x1B]8;;\x07",
-                "https://arbetsformedlingen.se/platsbanken/annonser/".to_owned()
+            job_url.push(
+                "https://platsbanken-api.arbetsformedlingen.se/jobs/v1/job/".to_owned()
                     + &job.id.to_string(),
-                &job.title
             );
-            println!("{}: {}", link_string.blue(), counter);
-            counter += 1;
             //println!("{}\n{}", job.id, job.title);
         }
         if result.numberOfAds < start_idx + 100 {
@@ -70,6 +81,61 @@ pub fn platsbanken(keyword: String) {
         }
         start_idx += 100;
     }
+
+    // Get and print every single job
+    get_jobs(&client, &job_url, &includes);
+}
+
+fn get_jobs(
+    client: &reqwest::blocking::Client,
+    job_url: &[String],
+    includes: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    for str in job_url {
+        let mut headers = header::HeaderMap::new();
+        headers.insert(
+            "Accept",
+            "application/json, text/plain, */*".parse().unwrap(),
+        );
+        headers.insert(
+            "Accept-Language",
+            "en-US,en;q=0.9,sv;q=0.8".parse().unwrap(),
+        );
+        headers.insert("Connection", "keep-alive".parse().unwrap());
+        headers.insert("INT_SYS", "platsbanken_web_beta".parse().unwrap());
+        headers.insert("Origin", "https://arbetsformedlingen.se".parse().unwrap());
+        headers.insert("Referer", "https://arbetsformedlingen.se/".parse().unwrap());
+        let response = client
+            .get(str)
+            .headers(headers)
+            .send()
+            .unwrap()
+            .text()
+            .unwrap();
+        let json_value: Value = serde_json::from_str(&response)?;
+
+        for include in includes {
+            if json_value["description"]
+                .to_string()
+                .to_ascii_lowercase()
+                .contains(&*include.to_ascii_lowercase())
+            {
+                let link_string = format!(
+                    "\x1B]8;;{}\x07{}\x1B]8;;\x07",
+                    "https://arbetsformedlingen.se/platsbanken/annonser/".to_owned()
+                        + &json_value["id"].to_string().replace("\"", ""),
+                    json_value["title"].to_string()
+                );
+                println!("{}", link_string.blue());
+                break; // break out of the loop when the first search string is found
+            }
+        }
+
+        //println!("{}", json_value["description"]);
+        //println!("{response}");
+    }
+
+    Ok(())
 }
 
 fn get_json_body(start_index: &str, keyword: &String) -> String {
@@ -118,3 +184,19 @@ fn get_client() -> reqwest::blocking::Client {
         .build()
         .unwrap()
 }
+
+// for id in res {
+//      let url: String =
+//          "https://arbetsformedlingen.se/platsbanken/annonser/".to_owned() + &id.to_string();
+//     let res = client.get(i).send()?.text()?;
+//     let response = deserialize_hackernews_story(res);
+//     //println!("{}\n", response.url?);
+//     let link_string = format!(
+//         "\x1B]8;;{}\x07{}\x1B]8;;\x07",
+//         &response.url.unwrap_or("default_url".to_string()),
+//         &response.title
+//     );
+//     println!("{}", link_string.red());
+// }
+
+//
